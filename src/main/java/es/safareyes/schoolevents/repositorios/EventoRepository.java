@@ -65,4 +65,19 @@ public interface EventoRepository extends JpaRepository<Evento, Integer>, JpaSpe
             + " WHERE e.estado = es.safareyes.schoolevents.modelos.EstadoEvento.PUBLICADO AND e.fechaFin < :ahora")
     int finalizarTerminados(@Param("ahora") LocalDateTime ahora);
 
+    // Q2 JPQL: comprobar si hay eventos solapados en el mismo lugar
+    @Query("""
+       SELECT COUNT(e) FROM Evento e
+       WHERE e.lugar.id = :idLugar
+       AND e.estado <> :cancelado
+       AND e.fechaInicio < :fin
+       AND e.fechaFin > :inicio
+       """)
+    long contarSolapamientos(
+            @Param("idLugar") Integer idLugar,
+            @Param("inicio") LocalDateTime inicio,
+            @Param("fin") LocalDateTime fin,
+            @Param("cancelado") EstadoEvento cancelado
+    );
+
 }

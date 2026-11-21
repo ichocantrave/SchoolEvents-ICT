@@ -17,13 +17,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.LinkedHashMap;
 import java.util.stream.Collectors;
+import es.safareyes.schoolevents.servicios.EventoService;
+import es.safareyes.schoolevents.dto.EventoDetalleDTO;
 
 @RestController
 @RequestMapping("/api/v1/eventos")
 public class EventoController {
     private final EventoRepository repositorio;
-    public EventoController(EventoRepository repositorio) {
+    private final EventoService servicio;
+    public EventoController(EventoRepository repositorio,
+                            EventoService servicio) {
         this.repositorio = repositorio;
+        this.servicio = servicio;
     }
 
     @GetMapping
@@ -99,6 +104,11 @@ public class EventoController {
                         LinkedHashMap::new, //create structure to save days y events manteniendo el orden que aparecen.
                         Collectors.toList() //to los events que tengan same day lo guardamo to juntos en lista.
                 ));
+    }
+    // Endpoint 3: detalle de un evento
+    @GetMapping("/{id}")
+    public EventoDetalleDTO detalle(@PathVariable Integer id) {
+        return servicio.detalle(id);
     }
 }
 
