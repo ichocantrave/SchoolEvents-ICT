@@ -12,9 +12,6 @@ import org.springframework.data.repository.query.Param;
 import es.safareyes.schoolevents.dto.EventoCalendarioView;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.transaction.annotation.Transactional;
-
-
-
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -58,13 +55,11 @@ public interface EventoRepository extends JpaRepository<Evento, Integer>, JpaSpe
     // Trae el evento con su lugar, categoría y cursos en una sola consulta
     @EntityGraph(attributePaths = {"lugar", "categoria", "cursos"})
     Optional<Evento> findConDetalleById(Integer id);
-
     // Q4: pasa a FINALIZADO los eventos PUBLICADOS que ya terminaron
     @Modifying
     @Query("UPDATE Evento e SET e.estado = es.safareyes.schoolevents.modelos.EstadoEvento.FINALIZADO "
             + " WHERE e.estado = es.safareyes.schoolevents.modelos.EstadoEvento.PUBLICADO AND e.fechaFin < :ahora")
     int finalizarTerminados(@Param("ahora") LocalDateTime ahora);
-
     // Q2 JPQL: comprobar si hay eventos solapados en el mismo lugar
     @Query("""
        SELECT COUNT(e) FROM Evento e
@@ -79,5 +74,22 @@ public interface EventoRepository extends JpaRepository<Evento, Integer>, JpaSpe
             @Param("fin") LocalDateTime fin,
             @Param("cancelado") EstadoEvento cancelado
     );
+    // Q2 JPQL: comprobar solapamientos al editar, ignorando el evento actual
+    @Query("""
+       SELECT COUNT(e) FROM Evento e
+       WHERE e.id <> :idEvento
+       AND e.lugar.id = :idLugar
+       AND e.estado <> :cancelado
+       AND e.fechaInicio < :fin
+       AND e.fechaFin > :inicio
+       """)
+    long contarSolapamientosAlEditar(
+            @Param("idEvento") Integer idEvento,
+            @Param("idLugar") Integer idLugar,
+            @Param("inicio") LocalDateTime inicio,
+            @Param("fin") LocalDateTime fin,
+            @Param("cancelado") EstadoEvento cancelado
+    );
+
 
 }

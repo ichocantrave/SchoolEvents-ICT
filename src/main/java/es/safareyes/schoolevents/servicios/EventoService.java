@@ -1,19 +1,17 @@
 package es.safareyes.schoolevents.servicios;
 
+import es.safareyes.schoolevents.dto.CrearEventoDTO;
+import es.safareyes.schoolevents.dto.EditarEventoDTO;
 import es.safareyes.schoolevents.dto.EventoDetalleDTO;
 import es.safareyes.schoolevents.modelos.*;
-import es.safareyes.schoolevents.repositorios.EventoRepository;
-import es.safareyes.schoolevents.repositorios.InscripcionRepository;
+import es.safareyes.schoolevents.repositorios.*;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
-import es.safareyes.schoolevents.dto.CrearEventoDTO;
-import es.safareyes.schoolevents.repositorios.CategoriaRepository;
-import es.safareyes.schoolevents.repositorios.LugarRepository;
-import es.safareyes.schoolevents.repositorios.CursoRepository;
-import es.safareyes.schoolevents.repositorios.RequisitoRepository;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 public class EventoService {
@@ -23,6 +21,7 @@ public class EventoService {
     private final LugarRepository lugarRepository;
     private final CursoRepository cursoRepository;
     private final RequisitoRepository requisitoRepository;
+    private final CambioEventoRepository cambioEventoRepository;
 
     public EventoService(
             EventoRepository eventoRepository,
@@ -30,13 +29,15 @@ public class EventoService {
             CategoriaRepository categoriaRepository,
             LugarRepository lugarRepository,
             CursoRepository cursoRepository,
-            RequisitoRepository requisitoRepository) {
+            RequisitoRepository requisitoRepository,
+            CambioEventoRepository cambioEventoRepository) {
         this.eventoRepository = eventoRepository;
         this.inscripcionRepository = inscripcionRepository;
         this.categoriaRepository = categoriaRepository;
         this.lugarRepository = lugarRepository;
         this.cursoRepository = cursoRepository;
         this.requisitoRepository = requisitoRepository;
+        this.cambioEventoRepository = cambioEventoRepository;
     }
     // ENDPOINT 3: detail of event
     @Transactional(readOnly = true)
@@ -123,7 +124,7 @@ public class EventoService {
                 datos.idCategoria() == null) {
 
             throw new ResponseStatusException(
-                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    HttpStatus.UNPROCESSABLE_CONTENT,
                     "Faltan datos obligatorios"
             );
         }
@@ -131,7 +132,7 @@ public class EventoService {
         if (!datos.fechaFin().isAfter(datos.fechaInicio())) {
 
             throw new ResponseStatusException(
-                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    HttpStatus.UNPROCESSABLE_CONTENT,
                     "La fecha de fin debe ser posterior al inicio"
             );
         }
@@ -140,7 +141,7 @@ public class EventoService {
                 datos.fechaLimite().isAfter(datos.fechaInicio())) {
 
             throw new ResponseStatusException(
-                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    HttpStatus.UNPROCESSABLE_CONTENT,
                     "Fecha limite incorrecta"
             );
         }
@@ -166,7 +167,7 @@ public class EventoService {
                 aforo > lugar.getAforo()) {
 
             throw new ResponseStatusException(
-                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    HttpStatus.UNPROCESSABLE_CONTENT,
                     "Aforo incorrecto"
             );
         }
@@ -228,5 +229,160 @@ public class EventoService {
         // save proye in Postgres
         return eventoRepository.save(evento);
     }
-}
 
+    // ENDPOINT 5: edit event
+    @Transactional
+    public Evento editar(Integer id, EditarEventoDTO datos, Usuario usuario) {
+        // find evento
+        Evento evento = eventoRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Evento no encontrado"
+                ));
+        // test permisos
+        if (usuario == null ||
+                (usuario.getRol() != RolUsuario.ADMIN &&
+                        (usuario.getRol() != RolUsuario.ORGANIZADOR ||
+                                evento.getOrganizador() == null ||
+                                !evento.getOrganizador().getId().equals(usuario.getId())))) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN, "No tienes permisos"
+            );
+        }
+        // test datos obligatorios
+        if (datos == null ||
+                datos.titulo() == null || datos.titulo().isBlank() ||
+                datos.fechaInicio() == null ||
+                datos.fechaFin() == null ||
+                datos.idLugar() == null ||
+                datos.idCategoria() == null) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.UNPROCESSABLE_CONTENT,
+                    "Faltan datos obligatorios"
+            );
+        }
+        // test fechas
+        if (!datos.fechaFin().isAfter(datos.fechaInicio()) ||
+                (datos.fechaLimite() != null &&
+                        datos.fechaLimite().isAfter(datos.fechaInicio()))) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.UNPROCESSABLE_CONTENT,
+                    "Fechas incorrectas"
+            );
+        }
+        // find lugar y categoria
+        Lugar lugar = lugarRepository.findById(datos.idLugar())
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Lugar no encontrado"
+                ));
+        Categoria categoria = categoriaRepository
+                .findById(datos.idCategoria())
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Categoria no encontrada"
+                ));
+        // test aforo
+        Integer aforo = datos.aforo() == null
+                ? lugar.getAforo() : datos.aforo();
+        long ocupadas = inscripcionRepository
+                .countByEventoIdAndTipoAndEstado(
+                        id,
+                        TipoInscripcion.ASISTIRE,
+                        EstadoInscripcion.CONFIRMADA
+                );
+        if (aforo == null || aforo <= 0 ||
+                lugar.getAforo() == null ||
+                aforo > lugar.getAforo() ||
+                aforo < ocupadas) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.UNPROCESSABLE_CONTENT,
+                    "Aforo incorrecto"
+            );
+        }
+        // test solapamientos sin contar el propio evento
+        long solapados = eventoRepository.contarSolapamientosAlEditar(
+                id,
+                datos.idLugar(),
+                datos.fechaInicio(),
+                datos.fechaFin(),
+                EstadoEvento.CANCELADO
+        );
+        if (solapados > 0) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Ya existe un evento en ese lugar y horario"
+            );
+        }
+        // find cursos
+        List<Integer> idsCursos = datos.cursos() == null
+                ? List.of()
+                : datos.cursos().stream().distinct().toList();
+        List<Curso> cursos = cursoRepository.findAllById(idsCursos);
+        // find requisitos
+        List<Integer> idsRequisitos = datos.requisitos() == null
+                ? List.of()
+                : datos.requisitos().stream().distinct().toList();
+
+        List<Requisito> requisitos =
+                requisitoRepository.findAllById(idsRequisitos);
+
+        if (cursos.size() != idsCursos.size() ||
+                requisitos.size() != idsRequisitos.size()) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "Curso o requisito no encontrado"
+            );
+        }
+        // Si el evento esta publicado, guardamos los cambios
+        if (evento.getEstado() == EstadoEvento.PUBLICADO) {
+
+            guardarCambio(
+                    evento, usuario, "fechaInicio",
+                    evento.getFechaInicio(), datos.fechaInicio()
+            );
+
+            guardarCambio(
+                    evento, usuario, "fechaFin",
+                    evento.getFechaFin(), datos.fechaFin()
+            );
+
+            guardarCambio(
+                    evento, usuario, "lugar",
+                    evento.getLugar() == null
+                            ? null : evento.getLugar().getId(),
+                    lugar.getId()
+            );
+        }
+        // actuali event
+        evento.setTitulo(datos.titulo());
+        evento.setDescripcion(datos.descripcion());
+        evento.setFechaInicio(datos.fechaInicio());
+        evento.setFechaFin(datos.fechaFin());
+        evento.setFechaLimite(datos.fechaLimite());
+        evento.setAforo(aforo);
+        evento.setLugar(lugar);
+        evento.setCategoria(categoria);
+        evento.setCursos(cursos);
+        evento.setRequisitos(requisitos);
+        // save datos
+        return eventoRepository.save(evento);
+    }
+    // Guardar los cambios realizados en un evento
+    private void guardarCambio(Evento evento, Usuario usuario,
+                               String campo, Object anterior, Object nuevo) {
+        // Comprobamos si el valor ha cambiado
+        if (!Objects.equals(anterior, nuevo)) {
+            CambioEvento cambio = new CambioEvento();
+            cambio.setEvento(evento);
+            cambio.setAutor(usuario);
+            cambio.setCampo(campo);
+            cambio.setValorAnterior(String.valueOf(anterior));
+            cambio.setValorNuevo(String.valueOf(nuevo));
+            cambio.setFechaCambio(LocalDateTime.now());
+            cambioEventoRepository.save(cambio);
+        }
+    }
+}
