@@ -17,7 +17,6 @@ import java.util.List;
 
 @Service
 public class EventoService {
-
     private final EventoRepository eventoRepository;
     private final InscripcionRepository inscripcionRepository;
     private final CategoriaRepository categoriaRepository;
@@ -32,7 +31,6 @@ public class EventoService {
             LugarRepository lugarRepository,
             CursoRepository cursoRepository,
             RequisitoRepository requisitoRepository) {
-
         this.eventoRepository = eventoRepository;
         this.inscripcionRepository = inscripcionRepository;
         this.categoriaRepository = categoriaRepository;
@@ -40,19 +38,15 @@ public class EventoService {
         this.cursoRepository = cursoRepository;
         this.requisitoRepository = requisitoRepository;
     }
-
-    // ENDPOINT 3: DETALLE DE UN EVENTO
-
+    // ENDPOINT 3: detail of event
     @Transactional(readOnly = true)
     public EventoDetalleDTO detalle(Integer id) {
-
-        // Buscamos el evento por su ID
+        // find event x id
         Evento evento = eventoRepository.findConDetalleById(id)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Evento no encontrado"
                 ));
-
-        // Solo mostramos eventos publicados o finalizados
+        // only show events public or finalizaos
         if (evento.getEstado() != EstadoEvento.PUBLICADO &&
                 evento.getEstado() != EstadoEvento.FINALIZADO) {
 
@@ -60,41 +54,35 @@ public class EventoService {
                     HttpStatus.NOT_FOUND, "Evento no encontrado"
             );
         }
-
-        // Contamos las personas que tienen plaza
+        // count person tienen plaza
         long ocupadas = inscripcionRepository
                 .countByEventoIdAndTipoAndEstado(
                         id,
                         TipoInscripcion.ASISTIRE,
                         EstadoInscripcion.CONFIRMADA
                 );
-
-        // Si no tiene aforo propio, usamos el del lugar
+        // Si no have aforo propio, use el del lugar
         Integer aforo = evento.getAforo();
-
         if (aforo == null && evento.getLugar() != null) {
             aforo = evento.getLugar().getAforo();
         }
-
-        // Calculamos las plazas libres
+        // Calc plazas free
         long plazasLibres = aforo == null ? 0 :
                 Math.max(0L, aforo.longValue() - ocupadas);
-
-        // Obtenemos los ID de los cursos
+        // Obten ID de cursos
         List<Integer> cursos = evento.getCursos() == null
                 ? List.of()
                 : evento.getCursos().stream()
                 .map(Curso::getId)
                 .toList();
-
-        // Obtenemos los ID de los requisitos
+        // Obten ID de requi
         List<Integer> requisitos = evento.getRequisitos() == null
                 ? List.of()
                 : evento.getRequisitos().stream()
                 .map(Requisito::getId)
                 .toList();
 
-        // Devolvemos los datos del evento
+        // Devolv datos de event
         return new EventoDetalleDTO(
                 evento.getId(),
                 evento.getTitulo(),
@@ -113,7 +101,6 @@ public class EventoService {
                 requisitos
         );
     }
-
     //pa el endpoint 4: crear event
     @Transactional
     public Evento crear(CrearEventoDTO datos, Usuario organizador) {

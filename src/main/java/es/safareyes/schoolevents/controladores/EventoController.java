@@ -1,36 +1,43 @@
-
 package es.safareyes.schoolevents.controladores;
 
 import es.safareyes.schoolevents.dto.EventoResumenDTO;
+import es.safareyes.schoolevents.dto.EventoCalendarioView;
+import es.safareyes.schoolevents.dto.EventoDetalleDTO;
+import es.safareyes.schoolevents.dto.CrearEventoDTO;
 import es.safareyes.schoolevents.modelos.EstadoEvento;
 import es.safareyes.schoolevents.modelos.Evento;
+import es.safareyes.schoolevents.modelos.Usuario;
 import es.safareyes.schoolevents.repositorios.EventoRepository;
 import es.safareyes.schoolevents.repositorios.EventoSpecifications;
+import es.safareyes.schoolevents.repositorios.UsuarioRepository;
+import es.safareyes.schoolevents.servicios.EventoService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 import java.time.LocalDateTime;
-import es.safareyes.schoolevents.dto.EventoCalendarioView;
 import java.util.List;
 import java.util.Map;
 import java.util.LinkedHashMap;
 import java.util.stream.Collectors;
-import es.safareyes.schoolevents.servicios.EventoService;
-import es.safareyes.schoolevents.dto.EventoDetalleDTO;
 
 @RestController
 @RequestMapping("/api/v1/eventos")
 public class EventoController {
     private final EventoRepository repositorio;
     private final EventoService servicio;
+    private final UsuarioRepository usuarioRepository;
     public EventoController(EventoRepository repositorio,
-                            EventoService servicio) {
+                            EventoService servicio,
+                            UsuarioRepository usuarioRepository) {
         this.repositorio = repositorio;
         this.servicio = servicio;
+        this.usuarioRepository = usuarioRepository;
     }
-
     @GetMapping
     public Page<EventoResumenDTO> listar(
             // La famosa paginación
@@ -51,28 +58,24 @@ public class EventoController {
         Specification<Evento> filtros =
                 (root, query, cb) -> // he añadido listar para que gestione los dos filtros creados en eventoSpecification.java
                         cb.equal(root.get("estado"), EstadoEvento.PUBLICADO);
-
         // Filtramos x catgeoria  si recibimos  ID
         if (categoria != null) {
             filtros = filtros.and(
                     EventoSpecifications.conCategoria(categoria)
             );
         }
-
         // Filtramos x titulo  si recibimos text
         if (texto != null && !texto.isBlank()) {
             filtros = filtros.and(
                     EventoSpecifications.tituloContiene(texto)
             );
         }
-
         // Filtramos x curso si recibimos ID
         if (curso != null) {
             filtros = filtros.and(
                     EventoSpecifications.conCurso(curso)
             );
         }
-
         // Filtramos x fecha si recibimos ambas
         if (desde != null && hasta != null) {
             filtros = filtros.and(
@@ -90,7 +93,6 @@ public class EventoController {
                 evento.getEstado()
         ));
     }
-
     // Endpoint 2: calendario agrupado por día
     @GetMapping("/calendario")
     public Map<String, List<EventoCalendarioView>> calendario(
@@ -110,6 +112,31 @@ public class EventoController {
     public EventoDetalleDTO detalle(@PathVariable Integer id) {
         return servicio.detalle(id);
     }
+    // Endpoint 4: crear un evento
+// Pa pruebecias: idOrganizador solo pa test Postman
+    @PostMapping
+    public ResponseEntity<Map<String, Object>> crear(
+            @RequestBody CrearEventoDTO datos,
+            @RequestParam Integer idOrganizador) {
+        // find organi
+        Usuario organizador = usuarioRepository
+                .findById(idOrganizador)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Usuario no encontrado"
+                ));
+        // Creamos event using el service
+        Evento evento = servicio.crear(datos, organizador);
+        // El create 201
+        return ResponseEntity.status(HttpStatus.CREATED).body(
+                Map.of(
+                        "id", evento.getId(),
+                        "titulo", evento.getTitulo(),
+                        "estado", evento.getEstado().name()
+                )
+        );
+    }
+
 }
 
 
