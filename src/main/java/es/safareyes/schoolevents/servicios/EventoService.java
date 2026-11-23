@@ -443,4 +443,80 @@ public class EventoService {
             usuarioNotificacionRepository.save(aviso);
         }
     }
+    // ENDPOINT 6: public o cancel event
+    @Transactional
+    public Evento cambiarEstado(Integer id, EstadoEvento nuevoEstado,
+                                Usuario usuario) {
+        // find evento
+        Evento evento = eventoRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Evento no encontrado"
+                ));
+        // test permisos
+        if (usuario == null ||
+                (usuario.getRol() != RolUsuario.ADMIN &&
+                        (usuario.getRol() != RolUsuario.ORGANIZADOR ||
+                                evento.getOrganizador() == null ||
+                                !evento.getOrganizador().getId().equals(usuario.getId())))) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN, "No tienes permisos"
+            );
+        }
+        // public only si es borraod
+        if (nuevoEstado == EstadoEvento.PUBLICADO &&
+                evento.getEstado() == EstadoEvento.BORRADOR) {
+            // solapamientos?
+            long solapados = eventoRepository.contarSolapamientosAlEditar(
+                    id,
+                    evento.getLugar().getId(),
+                    evento.getFechaInicio(),
+                    evento.getFechaFin(),
+                    EstadoEvento.CANCELADO
+            );
+            if (solapados > 0) {
+                throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "Ya existe un evento en ese lugar y horario"
+                );
+            }
+            evento.setEstado(EstadoEvento.PUBLICADO);
+            // cancel desde Draft or public
+        } else if (nuevoEstado == EstadoEvento.CANCELADO &&
+                (evento.getEstado() == EstadoEvento.BORRADOR ||
+                        evento.getEstado() == EstadoEvento.PUBLICADO)) {
+            evento.setEstado(EstadoEvento.CANCELADO);
+            // advice a los inscri
+            notificarCancelacion(evento);
+        } else {
+            throw new ResponseStatusException(
+                    HttpStatus.UNPROCESSABLE_CONTENT,
+                    "Cambio de estado no permitido"
+            );
+        }
+        // save estado
+        return eventoRepository.save(evento);
+    }
+    // ENDPOINT 6: notify cancelacion
+    private void notificarCancelacion(Evento evento) {
+        List<Inscripcion> inscripciones =
+                inscripcionRepository.findByEventoId(evento.getId());
+        if (inscripciones.isEmpty()) {
+            return;
+        }
+        // create notifi
+        Notificacion notificacion = new Notificacion();
+        notificacion.setMensaje(
+                "El evento '" + evento.getTitulo() + "' ha sido cancelado"
+        );
+        notificacionRepository.save(notificacion);
+        // notifi a tos los inscri
+        for (Inscripcion inscripcion : inscripciones) {
+            UsuarioNotificacion aviso = new UsuarioNotificacion();
+            aviso.setUsuario(inscripcion.getUsuario());
+            aviso.setNotificacion(notificacion);
+            aviso.setLeida(false);
+            usuarioNotificacionRepository.save(aviso);
+        }
+    }
+
 }

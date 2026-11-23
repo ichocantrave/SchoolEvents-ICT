@@ -162,8 +162,31 @@ public class EventoController {
                 )
         );
     }
+    // Endpoint 6: public o cancel event
+    // idOrganizador solo pa pruebas Postman
+    @PatchMapping("/{id}/estado")
+    public ResponseEntity<Map<String, Object>> cambiarEstado(
+            @PathVariable Integer id,
+            @RequestBody Map<String, EstadoEvento> datos,
+            @RequestParam Integer idOrganizador) {
+        // find user
+        Usuario usuario = usuarioRepository.findById(idOrganizador)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Usuario no encontrado"
+                ));
+        // chnage state using service
+        Evento evento = servicio.cambiarEstado(
+                id, datos.get("estado"), usuario
+        );
+        return ResponseEntity.ok(
+                Map.of(
+                        "id", evento.getId(),
+                        "titulo", evento.getTitulo(),
+                        "estado", evento.getEstado().name()
+                )
+        );
+    }
 }
-
 
 //http://localhost:8080/api/v1/eventos?pagina=0&tamano=5
 //0&y eso es pa la paginación
