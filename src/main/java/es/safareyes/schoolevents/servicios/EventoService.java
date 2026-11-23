@@ -22,6 +22,8 @@ public class EventoService {
     private final CursoRepository cursoRepository;
     private final RequisitoRepository requisitoRepository;
     private final CambioEventoRepository cambioEventoRepository;
+    private final NotificacionRepository notificacionRepository;
+    private final UsuarioNotificacionRepository usuarioNotificacionRepository;
 
     public EventoService(
             EventoRepository eventoRepository,
@@ -30,7 +32,9 @@ public class EventoService {
             LugarRepository lugarRepository,
             CursoRepository cursoRepository,
             RequisitoRepository requisitoRepository,
-            CambioEventoRepository cambioEventoRepository) {
+            CambioEventoRepository cambioEventoRepository,
+            NotificacionRepository notificacionRepository,
+            UsuarioNotificacionRepository usuarioNotificacionRepository) {
         this.eventoRepository = eventoRepository;
         this.inscripcionRepository = inscripcionRepository;
         this.categoriaRepository = categoriaRepository;
@@ -38,6 +42,8 @@ public class EventoService {
         this.cursoRepository = cursoRepository;
         this.requisitoRepository = requisitoRepository;
         this.cambioEventoRepository = cambioEventoRepository;
+        this.notificacionRepository = notificacionRepository;
+        this.usuarioNotificacionRepository = usuarioNotificacionRepository;
     }
     // ENDPOINT 3: detail of event
     @Transactional(readOnly = true)
@@ -249,6 +255,14 @@ public class EventoService {
                     HttpStatus.FORBIDDEN, "No tienes permisos"
             );
         }
+        // NO edit event finalizao o cancelao
+        if (evento.getEstado() == EstadoEvento.FINALIZADO ||
+                evento.getEstado() == EstadoEvento.CANCELADO) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNPROCESSABLE_CONTENT,
+                    "No se puede editar un evento finalizao o cancelao"
+            );
+        }
         // test datos obligatorios
         if (datos == null ||
                 datos.titulo() == null || datos.titulo().isBlank() ||
@@ -324,37 +338,43 @@ public class EventoService {
         List<Integer> idsRequisitos = datos.requisitos() == null
                 ? List.of()
                 : datos.requisitos().stream().distinct().toList();
-
         List<Requisito> requisitos =
                 requisitoRepository.findAllById(idsRequisitos);
-
         if (cursos.size() != idsCursos.size() ||
                 requisitos.size() != idsRequisitos.size()) {
-
             throw new ResponseStatusException(
                     HttpStatus.NOT_FOUND,
                     "Curso o requisito no encontrado"
             );
         }
-        // Si el evento esta publicado, guardamos los cambios
+        // if event is publicao save change
         if (evento.getEstado() == EstadoEvento.PUBLICADO) {
-
             guardarCambio(
                     evento, usuario, "fechaInicio",
                     evento.getFechaInicio(), datos.fechaInicio()
             );
-
             guardarCambio(
                     evento, usuario, "fechaFin",
                     evento.getFechaFin(), datos.fechaFin()
             );
-
             guardarCambio(
                     evento, usuario, "lugar",
                     evento.getLugar() == null
                             ? null : evento.getLugar().getId(),
                     lugar.getId()
             );
+            // advice change of date o place
+            boolean hayCambios =
+                    !Objects.equals(evento.getFechaInicio(), datos.fechaInicio()) ||
+                            !Objects.equals(evento.getFechaFin(), datos.fechaFin()) ||
+                            !Objects.equals(
+                                    evento.getLugar() == null
+                                            ? null : evento.getLugar().getId(),
+                                    lugar.getId()
+                            );
+            if (hayCambios) {
+                notificarCambio(evento);
+            }
         }
         // actuali event
         evento.setTitulo(datos.titulo());
@@ -370,10 +390,10 @@ public class EventoService {
         // save datos
         return eventoRepository.save(evento);
     }
-    // Guardar los cambios realizados en un evento
+    // save cambios in event
     private void guardarCambio(Evento evento, Usuario usuario,
                                String campo, Object anterior, Object nuevo) {
-        // Comprobamos si el valor ha cambiado
+        // check si event a cambio
         if (!Objects.equals(anterior, nuevo)) {
             CambioEvento cambio = new CambioEvento();
             cambio.setEvento(evento);
@@ -385,4 +405,40 @@ public class EventoService {
             cambioEventoRepository.save(cambio);
         }
     }
+    // ENDPOINT 5: noti chage a los inscritos
+    private void notificarCambio(Evento evento) {
+        // find inscrip del event
+        List<Inscripcion> inscripciones =
+                inscripcionRepository.findByEventoId(evento.getId());
+        // get user que van recive noti
+        List<Usuario> usuarios = inscripciones.stream()
+                .filter(i -> i.getTipo() == TipoInscripcion.ASISTIRE)
+                .filter(i -> i.getEstado() == EstadoInscripcion.CONFIRMADA ||
+                        i.getEstado() == EstadoInscripcion.EN_ESPERA)
+                .map(Inscripcion::getUsuario)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        // po si no hay nadie inscrito pues no mandamos na
+        if (usuarios.isEmpty()) {
+            return;
+        }
+        // create noti
+        Notificacion notificacion = new Notificacion();
+        notificacion.setMensaje(
+                "El evento '" + evento.getTitulo() +
+                        "' ha cambiado de fecha, hora o lugar"
+        );
+        // save noti
+        notificacionRepository.save(notificacion);
+        // assign noti a each user
+        for (Usuario usuario : usuarios) {
+            UsuarioNotificacion aviso = new UsuarioNotificacion();
+            aviso.setUsuario(usuario);
+            aviso.setNotificacion(notificacion);
+            aviso.setLeida(false);
+            usuarioNotificacionRepository.save(aviso);
+        }
+    }
+
 }
