@@ -11,6 +11,7 @@ import es.safareyes.schoolevents.repositorios.EventoRepository;
 import es.safareyes.schoolevents.repositorios.EventoSpecifications;
 import es.safareyes.schoolevents.repositorios.UsuarioRepository;
 import es.safareyes.schoolevents.servicios.EventoService;
+import es.safareyes.schoolevents.dto.EditarEventoDTO;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.domain.Specification;
@@ -136,7 +137,31 @@ public class EventoController {
                 )
         );
     }
-
+    // Endpoint 5: edit event
+    // Pa pruebas: idOrganizador solo pa test Postman
+    @PutMapping("/{id}")
+    public ResponseEntity<Map<String, Object>> editar(
+            @PathVariable Integer id,
+            @RequestBody EditarEventoDTO datos,
+            @RequestParam Integer idOrganizador) {
+        // find user edit
+        Usuario usuario = usuarioRepository
+                .findById(idOrganizador)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Usuario no encontrado"
+                ));
+        // edit event using service
+        Evento evento = servicio.editar(id, datos, usuario);
+        // return event actualizao
+        return ResponseEntity.ok(
+                Map.of(
+                        "id", evento.getId(),
+                        "titulo", evento.getTitulo(),
+                        "estado", evento.getEstado().name()
+                )
+        );
+    }
 }
 
 
