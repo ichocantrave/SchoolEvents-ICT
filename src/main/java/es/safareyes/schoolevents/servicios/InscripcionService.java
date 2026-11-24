@@ -7,15 +7,19 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 import java.time.LocalDateTime;
-private final NotificacionRepository notificacionRepository;
-private final UsuarioNotificacionRepository usuarioNotificacionRepository;
+import java.util.List;
+import java.util.Map;
+import java.util.LinkedHashMap;
+import java.util.List;
 
 @Service
 public class InscripcionService {
+
     private final InscripcionRepository inscripcionRepository;
     private final EventoRepository eventoRepository;
     private final UsuarioRepository usuarioRepository;
-
+    private final NotificacionRepository notificacionRepository;
+    private final UsuarioNotificacionRepository usuarioNotificacionRepository;
 
     public InscripcionService(
             InscripcionRepository inscripcionRepository,
@@ -114,4 +118,96 @@ public class InscripcionService {
         return inscripcionRepository.save(inscripcion);
     }
 
+    // ENDPOINT 10: delet inscrip
+    @Transactional
+    public void borrarInscripcion(Integer idEvento, Integer idUsuario) {
+        // find event
+        Evento evento = eventoRepository.findById(idEvento).orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Evento no encontrado"
+        ));
+        // find user
+        Usuario usuario = usuarioRepository.findById(idUsuario).orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Usuario no encontrado"
+        ));
+
+        // solo students
+        if (usuario.getRol() != RolUsuario.ESTUDIANTE) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN, "No tienes permisos"
+            );
+        }
+        // find inscripc
+        Inscripcion inscripcion = inscripcionRepository.findByUsuarioIdAndEventoId(idUsuario, idEvento)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Inscripcion no encontrada"));
+        // test if ocuapa plaza
+        boolean teniaPlaza = inscripcion.getTipo() == TipoInscripcion.ASISTIRE &&
+                        inscripcion.getEstado() == EstadoInscripcion.CONFIRMADA;
+        // delet inscrip
+        inscripcionRepository.delete(inscripcion);
+        // si no ocupaba plaza no hace falta promocionar
+        if (!teniaPlaza) {
+            return;
+        }
+        // find 1º list de wait
+        Inscripcion siguiente = inscripcionRepository.findFirstByEventoIdAndEstadoOrderByCreadaEnAsc(
+                        idEvento, EstadoInscripcion.EN_ESPERA).orElse(null);
+        if (siguiente == null) {
+            return;
+        }
+        // darle la plaza
+        siguiente.setEstado(EstadoInscripcion.CONFIRMADA);
+        inscripcionRepository.save(siguiente);
+        // create notifi
+        Notificacion notificacion = new Notificacion();
+        notificacion.setMensaje(
+                "Has conseguido una plaza en el evento '" +
+                        evento.getTitulo() + "'"
+        );
+        notificacionRepository.save(notificacion);
+        // send aviso user
+        UsuarioNotificacion aviso = new UsuarioNotificacion();
+        aviso.setUsuario(siguiente.getUsuario());
+        aviso.setNotificacion(notificacion);
+        aviso.setLeida(false);
+        usuarioNotificacionRepository.save(aviso);
+    }
+    //Endpoint 11: mi agend de events
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> miAgenda(Integer idUsuario, TipoInscripcion tipo){
+        //find user
+        Usuario usuario = usuarioRepository.findById(idUsuario).orElseThrow(()-> new ResponseStatusException(
+                HttpStatus.NOT_FOUND,"Usuario no encontrado"
+        ));
+        // solo students
+        if (usuario.getRol() != RolUsuario.ESTUDIANTE) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN, "No tienes permisos"
+            );
+        }
+        // test tipo
+        if (tipo == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNPROCESSABLE_CONTENT,
+                    "Tipo de inscripcion obligatorio"
+            );
+        }
+        // find mis inscrip
+        List<Inscripcion> inscripciones =
+                inscripcionRepository.findByUsuarioIdAndTipo(idUsuario, tipo);
+        // devolver los event
+        return inscripciones.stream()
+                .map(inscripcion -> {
+                    Evento evento = inscripcion.getEvento();
+                    Map<String, Object> datos = new LinkedHashMap<>();
+                    datos.put("id", evento.getId());
+                    datos.put("titulo", evento.getTitulo());
+                    datos.put("fechaInicio", evento.getFechaInicio());
+                    datos.put("fechaFin", evento.getFechaFin());
+                    datos.put("tipo", inscripcion.getTipo());
+                    datos.put("estadoInscripcion", inscripcion.getEstado());
+                    return datos;
+                })
+                .toList();
+    }
 }

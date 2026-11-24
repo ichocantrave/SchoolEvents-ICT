@@ -11,11 +11,9 @@ import java.util.Map;
 @RequestMapping("/api/v1/eventos")
 public class InscripcionController {
     private final InscripcionService servicio;
-
     public InscripcionController(InscripcionService servicio){
         this.servicio = servicio;
     }
-
     //Endpoint 9: inscrip alumn a event
     //er idUser es pa las pruebaas w Postman
     @PostMapping("/{id}/inscripciones")
@@ -32,5 +30,15 @@ public class InscripcionController {
                      "estado", inscripcion.getEstado().name())
      );
     }
+    // ENDPOINT 10: delete inscrip
+    // idUsuario solo pa test Postman
+    @DeleteMapping("/{id}/inscripciones/me")
+    public ResponseEntity<Void> borrarInscripcion(
+            @PathVariable Integer id,
+            @RequestParam Integer idUsuario) {
 
+        servicio.borrarInscripcion(id, idUsuario);
+
+        return ResponseEntity.noContent().build();
+    }
 }
