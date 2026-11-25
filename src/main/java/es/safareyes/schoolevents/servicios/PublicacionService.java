@@ -77,7 +77,7 @@ public class PublicacionService {
         // save publi
         return publicacionRepository.save(publicacion);
     }
-    //Endpoint 15: consult public w fotos
+    //Endpoint 15: consult public w fotos ago
     @Transactional(readOnly = true)
     public List<Map<String, Object>> listarPublicaciones(Integer idEvento){
         //find event
