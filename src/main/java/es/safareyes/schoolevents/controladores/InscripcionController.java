@@ -5,6 +5,7 @@ import es.safareyes.schoolevents.modelos.TipoInscripcion;
 import es.safareyes.schoolevents.servicios.InscripcionService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.data.domain.Page;
 import java.util.Map;
 
 @RestController
@@ -41,4 +42,16 @@ public class InscripcionController {
 
         return ResponseEntity.noContent().build();
     }
+    //Endpoint 12: consult inscri in event
+    @GetMapping("/{id}/inscripciones")
+    public Page<Map<String, Object>> listarInscritos(
+            @PathVariable Integer id,
+            @RequestParam Integer idUsuario,
+            @RequestParam(defaultValue = "0") int pagina,
+            @RequestParam(defaultValue = "5") int tamano){
+        return servicio.listarInscritos(
+                id, idUsuario, pagina, tamano
+        );
+    }
+
 }

@@ -10,6 +10,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.LinkedHashMap;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import java.util.List;
 
 @Service
@@ -209,5 +211,44 @@ public class InscripcionService {
                     return datos;
                 })
                 .toList();
+    }
+    //Endpoint 12: listar inscrip w paginaci
+    @Transactional(readOnly = true)
+    public Page<Map<String, Object>> listarInscritos( Integer idEvento, Integer idUsuario, int pagina, int tamano) {
+        //find event
+        Evento evento = eventoRepository.findById(idEvento).orElseThrow(() -> new ResponseStatusException(
+                HttpStatus.NOT_FOUND, "Usuario no encontrado"
+        ));
+        //find user
+        Usuario usuario = usuarioRepository.findById(idUsuario).orElseThrow(() -> new ResponseStatusException(
+                HttpStatus.NOT_FOUND, "No encontrao el usuario"
+        ));
+        //test permisos
+        if (usuario.getRol() != RolUsuario.ADMIN && (usuario.getRol() != RolUsuario.ORGANIZADOR || evento.getOrganizador()
+                == null || !evento.getOrganizador().getId().equals(usuario.getId()))) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN, "No tienes permisos"
+            );
+        }
+        //test paginacion
+        if (pagina < 0 || tamano < 1) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "paginacion incorrecta"
+            );
+        }
+        //find inscrip
+        Page<Inscripcion> inscripciones = inscripcionRepository.findByEventoId(idEvento, PageRequest.of(pagina, tamano)
+        );
+        //devolver datos
+        return inscripciones.map(inscripcion -> {
+            Map<String, Object> datos = new LinkedHashMap<>();
+            datos.put("idInscripcion", inscripcion.getId());
+            datos.put("idUsuario", inscripcion.getUsuario().getId());
+            datos.put("nombre", inscripcion.getUsuario().getNombre());
+            datos.put("tipo", inscripcion.getTipo());
+            datos.put("estado", inscripcion.getEstado());
+            return datos;
+
+        });
     }
 }
