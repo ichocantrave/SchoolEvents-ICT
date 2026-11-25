@@ -36,7 +36,7 @@ public class Publicacion {
     @Column(name = "fecha", nullable = false, insertable = false, updatable = false)
     private LocalDateTime fecha;
 
-    // Lado inverso: así el endpoint 15 puede cargar publicaciones con sus fotos (@EntityGraph)
+    // Lao invers:endpoint 15 can cargar publi w sus fotos (@EntityGraph)
     @OneToMany(mappedBy = "publicacion", fetch = FetchType.LAZY)
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
