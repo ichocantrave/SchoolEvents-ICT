@@ -251,4 +251,46 @@ public class InscripcionService {
 
         });
     }
+    //endpoint 13: pasar list de asistencia
+    @Transactional
+    public Inscripcion marcarAsistencia(Integer idEvento, Integer idInscripcion, Integer idUsuario, Boolean asistio) {
+        // find event
+        Evento evento = eventoRepository.findById(idEvento).orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Evento no encontrado"
+                ));
+        // find user
+        Usuario usuario = usuarioRepository.findById(idUsuario).orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Usuario no encontrado"
+                ));
+        // test permis
+        if (usuario.getRol() != RolUsuario.ADMIN && (usuario.getRol() != RolUsuario.ORGANIZADOR ||
+                        evento.getOrganizador() == null || !evento.getOrganizador().getId().equals(usuario.getId()))) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN, "No tienes permisos"
+            );
+        }
+        // find inscrip
+        Inscripcion inscripcion = inscripcionRepository.findById(idInscripcion).orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Inscripcion no encontrada"
+                ));
+        // test que la inscrip perten al event
+        if (!inscripcion.getEvento().getId().equals(idEvento)) {throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND, "Inscripcion no encontrada en este evento"
+            );
+        }
+        // solo alumn w plaza confirm
+        if (inscripcion.getTipo() != TipoInscripcion.ASISTIRE || inscripcion.getEstado() != EstadoInscripcion.CONFIRMADA) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNPROCESSABLE_CONTENT, "El alumno no tiene plaza confirmada"
+            );
+        }
+        // test dato obligatorio
+        if (asistio == null) {throw new ResponseStatusException(
+                    HttpStatus.UNPROCESSABLE_CONTENT, "Debes indicar la asistencia"
+            );
+        }
+        // save asist
+        inscripcion.setAsistio(asistio);
+        return inscripcionRepository.save(inscripcion);
+    }
 }

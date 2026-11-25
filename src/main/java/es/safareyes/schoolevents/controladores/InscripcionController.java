@@ -54,4 +54,17 @@ public class InscripcionController {
         );
     }
 
+    // ENDPOINT 13: marcar asist
+    @PatchMapping("/{id}/inscripciones/{inscripcionId}/asistencia")
+    public ResponseEntity<Map<String, Object>> marcarAsistencia(
+            @PathVariable Integer id,
+            @PathVariable Integer inscripcionId,
+            @RequestParam Integer idUsuario,
+            @RequestBody Map<String, Boolean> datos) {
+        Inscripcion inscripcion = servicio.marcarAsistencia(id, inscripcionId, idUsuario, datos.get("asistio")
+        );
+        return ResponseEntity.ok(
+                Map.of("idInscripcion", inscripcion.getId(), "asistio", inscripcion.getAsistio())
+        );
+    }
 }
