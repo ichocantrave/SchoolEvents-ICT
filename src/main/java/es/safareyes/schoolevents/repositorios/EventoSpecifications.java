@@ -22,10 +22,8 @@ public class EventoSpecifications {
             LocalDateTime desde,
             LocalDateTime hasta) {
 
-        return (root, query, cb) ->
-                cb.between(root.get("fechaInicio"), desde, hasta);
+        return (root, query, cb) -> cb.between(root.get("fechaInicio"), desde, hasta);
     }
-
 
     // Busca eventos de un curso o abiertos a to el centro
     public static Specification<Evento> conCurso(Integer idCurso) {
@@ -36,8 +34,7 @@ public class EventoSpecifications {
             var eventoCurso = subconsulta.correlate(root);
             var curso = eventoCurso.join("cursos");
             // a ve si tienen el id
-            subconsulta.select(curso.get("id"))
-                    .where(cb.equal(curso.get("id"), idCurso));
+            subconsulta.select(curso.get("id")).where(cb.equal(curso.get("id"), idCurso));
             // Show event open o  curso solicitado
             return cb.or(
                     cb.isEmpty(root.get("cursos")),

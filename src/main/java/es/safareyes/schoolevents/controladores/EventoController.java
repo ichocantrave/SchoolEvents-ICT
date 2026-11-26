@@ -32,9 +32,10 @@ public class EventoController {
     private final EventoRepository repositorio;
     private final EventoService servicio;
     private final UsuarioRepository usuarioRepository;
-    public EventoController(EventoRepository repositorio,
-                            EventoService servicio,
-                            UsuarioRepository usuarioRepository) {
+    public EventoController(
+            EventoRepository repositorio,
+            EventoService servicio,
+            UsuarioRepository usuarioRepository) {
         this.repositorio = repositorio;
         this.servicio = servicio;
         this.usuarioRepository = usuarioRepository;
@@ -61,31 +62,25 @@ public class EventoController {
                         cb.equal(root.get("estado"), EstadoEvento.PUBLICADO);
         // Filtramos x catgeoria  si recibimos  ID
         if (categoria != null) {
-            filtros = filtros.and(
-                    EventoSpecifications.conCategoria(categoria)
+            filtros = filtros.and(EventoSpecifications.conCategoria(categoria)
             );
         }
         // Filtramos x titulo  si recibimos text
         if (texto != null && !texto.isBlank()) {
-            filtros = filtros.and(
-                    EventoSpecifications.tituloContiene(texto)
+            filtros = filtros.and(EventoSpecifications.tituloContiene(texto)
             );
         }
         // Filtramos x curso si recibimos ID
         if (curso != null) {
-            filtros = filtros.and(
-                    EventoSpecifications.conCurso(curso)
+            filtros = filtros.and(EventoSpecifications.conCurso(curso)
             );
         }
         // Filtramos x fecha si recibimos ambas
         if (desde != null && hasta != null) {
-            filtros = filtros.and(
-                    EventoSpecifications.entreFechas(desde, hasta)
+            filtros = filtros.and(EventoSpecifications.entreFechas(desde, hasta)
             );
         }
-        return repositorio.findAll(
-                filtros,
-                PageRequest.of(pagina, tamano)
+        return repositorio.findAll(filtros, PageRequest.of(pagina, tamano)
         ).map(evento -> new EventoResumenDTO(
                 evento.getId(),
                 evento.getTitulo(),
@@ -99,10 +94,9 @@ public class EventoController {
     public Map<String, List<EventoCalendarioView>> calendario(
             @RequestParam int mes,
             @RequestParam int anio) {
-        List<EventoCalendarioView> eventos =
-                repositorio.calendarioDelMes(mes, anio);
+        List<EventoCalendarioView> eventos = repositorio.calendarioDelMes(mes, anio);
         return eventos.stream() //vamo a recorrer to los evnets pa organiarlos
-                .collect(Collectors.groupingBy( //juntamos events con algo en común
+                        .collect(Collectors.groupingBy( //juntamos events con algo en común
                         EventoCalendarioView::getDia, // we use day of events pa asignarle grupito
                         LinkedHashMap::new, //create structure to save days y events manteniendo el orden que aparecen.
                         Collectors.toList() //to los events que tengan same day lo guardamo to juntos en lista.
@@ -120,11 +114,8 @@ public class EventoController {
             @RequestBody CrearEventoDTO datos,
             @RequestParam Integer idOrganizador) {
         // find organi
-        Usuario organizador = usuarioRepository
-                .findById(idOrganizador)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "Usuario no encontrado"
+        Usuario organizador = usuarioRepository.findById(idOrganizador).orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Usuario no encontrado"
                 ));
         // Creamos event using el service
         Evento evento = servicio.crear(datos, organizador);
@@ -145,11 +136,8 @@ public class EventoController {
             @RequestBody EditarEventoDTO datos,
             @RequestParam Integer idOrganizador) {
         // find user edit
-        Usuario usuario = usuarioRepository
-                .findById(idOrganizador)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "Usuario no encontrado"
+        Usuario usuario = usuarioRepository.findById(idOrganizador).orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Usuario no encontrado"
                 ));
         // edit event using service
         Evento evento = servicio.editar(id, datos, usuario);
@@ -170,13 +158,11 @@ public class EventoController {
             @RequestBody Map<String, EstadoEvento> datos,
             @RequestParam Integer idOrganizador) {
         // find user
-        Usuario usuario = usuarioRepository.findById(idOrganizador)
-                .orElseThrow(() -> new ResponseStatusException(
+        Usuario usuario = usuarioRepository.findById(idOrganizador).orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Usuario no encontrado"
                 ));
         // chnage state using service
-        Evento evento = servicio.cambiarEstado(
-                id, datos.get("estado"), usuario
+        Evento evento = servicio.cambiarEstado(id, datos.get("estado"), usuario
         );
         return ResponseEntity.ok(
                 Map.of(

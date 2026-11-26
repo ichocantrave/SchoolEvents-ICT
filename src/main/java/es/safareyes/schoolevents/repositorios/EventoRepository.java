@@ -19,14 +19,12 @@ import java.util.Optional;
 public interface EventoRepository extends JpaRepository<Evento, Integer>, JpaSpecificationExecutor<Evento> {
     // Eventos de un estado, del más próximo al más lejano
     List<Evento> findByEstadoOrderByFechaInicioAsc(EstadoEvento estado);
-
     // Eventos de un estado entre dos fechas
     List<Evento> findByEstadoAndFechaInicioBetweenOrderByFechaInicioAsc(EstadoEvento estado,
                                                                         LocalDateTime desde,
                                                                         LocalDateTime hasta);
     // Búsqueda por texto en el título
     List<Evento> findByTituloContainingIgnoreCase(String texto);
-
     // Eventos de una categoría, por nombre
     @Query("SELECT e FROM Evento e WHERE e.categoria.nombre = :nombre ORDER BY e.fechaInicio")
     List<Evento> buscarPorCategoria(@Param("nombre") String nombre);

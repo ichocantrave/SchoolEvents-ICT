@@ -40,8 +40,7 @@ public class PublicacionService {
                 HttpStatus.NOT_FOUND, "Usuario no encontrado"
         ));
         // solo eventos finalizados
-        if (evento.getEstado() != EstadoEvento.FINALIZADO) {
-            throw new ResponseStatusException(
+        if (evento.getEstado() != EstadoEvento.FINALIZADO) {throw new ResponseStatusException(
                     HttpStatus.UNPROCESSABLE_CONTENT, "El evento no esta finalizado"
             );
         }

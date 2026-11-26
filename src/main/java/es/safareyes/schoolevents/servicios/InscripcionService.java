@@ -12,29 +12,31 @@ import java.util.Map;
 import java.util.LinkedHashMap;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import java.util.List;
 
 @Service
 public class InscripcionService {
-
     private final InscripcionRepository inscripcionRepository;
     private final EventoRepository eventoRepository;
     private final UsuarioRepository usuarioRepository;
     private final NotificacionRepository notificacionRepository;
     private final UsuarioNotificacionRepository usuarioNotificacionRepository;
+    private final CambioEventoRepository cambioEventoRepository;
 
     public InscripcionService(
             InscripcionRepository inscripcionRepository,
             EventoRepository eventoRepository,
             UsuarioRepository usuarioRepository,
             NotificacionRepository notificacionRepository,
-            UsuarioNotificacionRepository usuarioNotificacionRepository) {
+            UsuarioNotificacionRepository usuarioNotificacionRepository, CambioEventoRepository cambioEventoRepository) {
 
         this.inscripcionRepository = inscripcionRepository;
         this.eventoRepository = eventoRepository;
         this.usuarioRepository = usuarioRepository;
         this.notificacionRepository = notificacionRepository;
         this.usuarioNotificacionRepository = usuarioNotificacionRepository;
+        this.cambioEventoRepository = cambioEventoRepository;
     }
 
     //Endpoint 9: Inscrib a event
@@ -80,23 +82,26 @@ public class InscripcionService {
         }
         //test cursos allow
         if (!evento.getCursos().isEmpty()) {
-
             if (usuario.getCurso() == null || evento.getCursos().stream().noneMatch(curso -> curso.getId().equals(usuario.getCurso().getId()))) {
                 throw new ResponseStatusException(
-                        HttpStatus.FORBIDDEN,
-                        "Este evento no es para tu curso");
+                        HttpStatus.FORBIDDEN, "Este evento no es para tu curso");
             }
         }
+
         //find if ya ta iscrito
         Inscripcion inscripcion = inscripcionRepository.findByUsuarioIdAndEventoId(idUsuario, idEvento).orElse(new Inscripcion());
-        //si ya have same tipo dont change na
+        //if ya have same tipo dont change na
         if (inscripcion.getId()!=null && inscripcion.getTipo() == tipo){
             return inscripcion;
         }
+        // if alumn w plaza pass a ME_INTERESA, plaza queda dispon
+        boolean liberaPlaza = inscripcion.getId() != null
+                && inscripcion.getTipo() == TipoInscripcion.ASISTIRE
+                && inscripcion.getEstado() == EstadoInscripcion.CONFIRMADA
+                && tipo == TipoInscripcion.ME_INTERESA;
         inscripcion.setUsuario(usuario);
         inscripcion.setEvento(evento);
         inscripcion.setTipo(tipo);
-
         //Me interesa no ocupa plaza
         if (tipo == TipoInscripcion.ME_INTERESA) {
             inscripcion.setEstado(EstadoInscripcion.CONFIRMADA);
@@ -106,8 +111,7 @@ public class InscripcionService {
             //comproba aforo
             Integer aforo  = evento.getAforo() == null? evento.getLugar().getAforo() : evento.getAforo();
             if (aforo == null|| aforo<= 0){
-                throw new ResponseStatusException(
-                        HttpStatus.UNPROCESSABLE_CONTENT, "Aforo incorrecto"
+                throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_CONTENT, "Aforo incorrecto"
                 );
             }
             if (ocupadas < aforo ){
@@ -116,8 +120,14 @@ public class InscripcionService {
                 inscripcion.setEstado(EstadoInscripcion.EN_ESPERA);
             }
         }
+
         //po pa save la inscrip
-        return inscripcionRepository.save(inscripcion);
+        Inscripcion guardada = inscripcionRepository.save(inscripcion);
+        if (liberaPlaza) {
+            promocionarPrimero(evento);
+        }
+        return guardada;
+
     }
 
     // ENDPOINT 10: delet inscrip
@@ -125,13 +135,12 @@ public class InscripcionService {
     public void borrarInscripcion(Integer idEvento, Integer idUsuario) {
         // find event
         Evento evento = eventoRepository.findById(idEvento).orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND, "Evento no encontrado"
+                HttpStatus.NOT_FOUND, "Evento no encontrado"
         ));
         // find user
         Usuario usuario = usuarioRepository.findById(idUsuario).orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND, "Usuario no encontrado"
+                HttpStatus.NOT_FOUND, "Usuario no encontrado"
         ));
-
         // solo students
         if (usuario.getRol() != RolUsuario.ESTUDIANTE) {
             throw new ResponseStatusException(
@@ -139,21 +148,23 @@ public class InscripcionService {
             );
         }
         // find inscripc
-        Inscripcion inscripcion = inscripcionRepository.findByUsuarioIdAndEventoId(idUsuario, idEvento)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND, "Inscripcion no encontrada"));
+        Inscripcion inscripcion = inscripcionRepository.findByUsuarioIdAndEventoId(idUsuario, idEvento).orElseThrow(() -> new ResponseStatusException(
+                HttpStatus.NOT_FOUND, "Inscripcion no encontrada"));
         // test if ocuapa plaza
-        boolean teniaPlaza = inscripcion.getTipo() == TipoInscripcion.ASISTIRE &&
-                        inscripcion.getEstado() == EstadoInscripcion.CONFIRMADA;
+        boolean teniaPlaza = inscripcion.getTipo() == TipoInscripcion.ASISTIRE && inscripcion.getEstado() == EstadoInscripcion.CONFIRMADA;
         // delet inscrip
         inscripcionRepository.delete(inscripcion);
         // si no ocupaba plaza no hace falta promocionar
         if (!teniaPlaza) {
             return;
         }
-        // find 1º list de wait
-        Inscripcion siguiente = inscripcionRepository.findFirstByEventoIdAndEstadoOrderByCreadaEnAsc(
-                        idEvento, EstadoInscripcion.EN_ESPERA).orElse(null);
+        promocionarPrimero(evento);
+    }
+    private void promocionarPrimero(Evento evento)
+    {
+        Integer idEvento = evento.getId();
+    // find 1º list de wait
+        Inscripcion siguiente = inscripcionRepository.findFirstByEventoIdAndEstadoOrderByCreadaEnAsc(idEvento, EstadoInscripcion.EN_ESPERA).orElse(null);
         if (siguiente == null) {
             return;
         }
@@ -162,9 +173,7 @@ public class InscripcionService {
         inscripcionRepository.save(siguiente);
         // create notifi
         Notificacion notificacion = new Notificacion();
-        notificacion.setMensaje(
-                "Has conseguido una plaza en el evento '" +
-                        evento.getTitulo() + "'"
+        notificacion.setMensaje("Has conseguido una plaza en el evento '" + evento.getTitulo() + "'"
         );
         notificacionRepository.save(notificacion);
         // send aviso user
@@ -190,13 +199,11 @@ public class InscripcionService {
         // test tipo
         if (tipo == null) {
             throw new ResponseStatusException(
-                    HttpStatus.UNPROCESSABLE_CONTENT,
-                    "Tipo de inscripcion obligatorio"
+                    HttpStatus.UNPROCESSABLE_CONTENT, "Tipo de inscripcion obligatorio"
             );
         }
         // find mis inscrip
-        List<Inscripcion> inscripciones =
-                inscripcionRepository.findByUsuarioIdAndTipo(idUsuario, tipo);
+        List<Inscripcion> inscripciones = inscripcionRepository.findByUsuarioIdAndTipo(idUsuario, tipo);
         // devolver los event
         return inscripciones.stream()
                 .map(inscripcion -> {

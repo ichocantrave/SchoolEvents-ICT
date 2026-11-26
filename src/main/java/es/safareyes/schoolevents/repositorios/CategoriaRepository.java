@@ -8,5 +8,5 @@ import java.util.Optional;
 public interface CategoriaRepository extends JpaRepository<Categoria, Integer> {
 
     Optional<Categoria> findByNombre(String nombre);
-    //Declara un metodo Dato Spring JPA del repositorio que busca categoria por su nombre del campo.
+    //Declara un metodo Dato Spring JPA del repos find categ x su name of campo.
 }

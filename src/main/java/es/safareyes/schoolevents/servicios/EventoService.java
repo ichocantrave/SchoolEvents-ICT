@@ -52,21 +52,17 @@ public class EventoService {
     @Transactional(readOnly = true)
     public EventoDetalleDTO detalle(Integer id) {
         // find event x id
-        Evento evento = eventoRepository.findConDetalleById(id)
-                .orElseThrow(() -> new ResponseStatusException(
+        Evento evento = eventoRepository.findConDetalleById(id).orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Evento no encontrado"
                 ));
         // only show events public or finalizaos
-        if (evento.getEstado() != EstadoEvento.PUBLICADO &&
-                evento.getEstado() != EstadoEvento.FINALIZADO) {
-
+        if (evento.getEstado() != EstadoEvento.PUBLICADO && evento.getEstado() != EstadoEvento.FINALIZADO) {
             throw new ResponseStatusException(
                     HttpStatus.NOT_FOUND, "Evento no encontrado"
             );
         }
         // count person tienen plaza
-        long ocupadas = inscripcionRepository
-                .countByEventoIdAndTipoAndEstado(
+        long ocupadas = inscripcionRepository.countByEventoIdAndTipoAndEstado(
                         id,
                         TipoInscripcion.ASISTIRE,
                         EstadoInscripcion.CONFIRMADA
@@ -77,8 +73,7 @@ public class EventoService {
             aforo = evento.getLugar().getAforo();
         }
         // Calc plazas free
-        long plazasLibres = aforo == null ? 0 :
-                Math.max(0L, aforo.longValue() - ocupadas);
+        long plazasLibres = aforo == null ? 0 : Math.max(0L, aforo.longValue() - ocupadas);
         // Obten ID de cursos
         List<Integer> cursos = evento.getCursos() == null
                 ? List.of()
@@ -91,7 +86,6 @@ public class EventoService {
                 : evento.getRequisitos().stream()
                 .map(Requisito::getId)
                 .toList();
-
         // Devolv datos de event
         return new EventoDetalleDTO(
                 evento.getId(),
@@ -115,10 +109,7 @@ public class EventoService {
     @Transactional
     public Evento crear(CrearEventoDTO datos, Usuario organizador) {
         // o organizador o admin
-        if (organizador == null ||
-                (organizador.getRol() != RolUsuario.ORGANIZADOR &&
-                        organizador.getRol() != RolUsuario.ADMIN)) {
-
+        if (organizador == null || (organizador.getRol() != RolUsuario.ORGANIZADOR && organizador.getRol() != RolUsuario.ADMIN)) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN, "No tienes permisos"
             );
@@ -133,36 +124,28 @@ public class EventoService {
                 datos.idCategoria() == null) {
 
             throw new ResponseStatusException(
-                    HttpStatus.UNPROCESSABLE_CONTENT,
-                    "Faltan datos obligatorios"
+                    HttpStatus.UNPROCESSABLE_CONTENT,"Faltan datos obligatorios"
             );
         }
         // fecha fin have to posterior a ini
         if (!datos.fechaFin().isAfter(datos.fechaInicio())) {
-
             throw new ResponseStatusException(
-                    HttpStatus.UNPROCESSABLE_CONTENT,
-                    "La fecha de fin debe ser posterior al inicio"
+                    HttpStatus.UNPROCESSABLE_CONTENT,"La fecha de fin debe ser posterior al inicio"
             );
         }
         // fecaçha liminte cants superar a la date de ini
         if (datos.fechaLimite() != null &&
                 datos.fechaLimite().isAfter(datos.fechaInicio())) {
-
             throw new ResponseStatusException(
-                    HttpStatus.UNPROCESSABLE_CONTENT,
-                    "Fecha limite incorrecta"
+                    HttpStatus.UNPROCESSABLE_CONTENT,"Fecha limite incorrecta"
             );
         }
         //find place
-        Lugar lugar = lugarRepository.findById(datos.idLugar())
-                .orElseThrow(() -> new ResponseStatusException(
+        Lugar lugar = lugarRepository.findById(datos.idLugar()).orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Lugar no encontrado"
                 ));
         // find cat
-        Categoria categoria = categoriaRepository
-                .findById(datos.idCategoria())
-                .orElseThrow(() -> new ResponseStatusException(
+        Categoria categoria = categoriaRepository.findById(datos.idCategoria()).orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Categoria no encontrada"
                 ));
         //si dont have aforo propio, we use el del lugar
@@ -170,14 +153,9 @@ public class EventoService {
                 ? lugar.getAforo()
                 : datos.aforo();
         //test aforo correct
-        if (aforo == null ||
-                aforo <= 0 ||
-                lugar.getAforo() == null ||
-                aforo > lugar.getAforo()) {
-
+        if (aforo == null || aforo <= 0 || lugar.getAforo() == null || aforo > lugar.getAforo()) {
             throw new ResponseStatusException(
-                    HttpStatus.UNPROCESSABLE_CONTENT,
-                    "Aforo incorrecto"
+                    HttpStatus.UNPROCESSABLE_CONTENT, "Aforo incorrecto"
             );
         }
         // po pa saber si hay event en el mismo lugar y hora
@@ -189,8 +167,7 @@ public class EventoService {
         );
         if (solapados > 0) {
             throw new ResponseStatusException(
-                    HttpStatus.CONFLICT,
-                    "Ya existe un evento en ese lugar y horario"
+                    HttpStatus.CONFLICT, "Ya existe un evento en ese lugar y horario"
             );
         }
         //find cursos
@@ -199,7 +176,6 @@ public class EventoService {
                 : datos.cursos().stream()
                 .distinct()
                 .toList();
-
         List<Curso> cursos = cursoRepository.findAllById(idsCursos);
         // find reequisi
         List<Integer> idsRequisitos = datos.requisitos() == null
@@ -207,17 +183,13 @@ public class EventoService {
                 : datos.requisitos().stream()
                 .distinct()
                 .toList();
-
         List<Requisito> requisitos =
                 requisitoRepository.findAllById(idsRequisitos);
-
         // test que exist all curses y requisi
-        if (cursos.size() != idsCursos.size() ||
-                requisitos.size() != idsRequisitos.size()) {
+        if (cursos.size() != idsCursos.size() || requisitos.size() != idsRequisitos.size()) {
 
             throw new ResponseStatusException(
-                    HttpStatus.NOT_FOUND,
-                    "Curso o requisito no encontrado"
+                    HttpStatus.NOT_FOUND, "Curso o requisito no encontrado"
             );
         }
         Evento evento = new Evento();
@@ -243,28 +215,18 @@ public class EventoService {
     @Transactional
     public Evento editar(Integer id, EditarEventoDTO datos, Usuario usuario) {
         // find evento
-        Evento evento = eventoRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(
+        Evento evento = eventoRepository.findById(id).orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Evento no encontrado"
                 ));
         // test permisos
-        if (usuario == null ||
-                (usuario.getRol() != RolUsuario.ADMIN &&
-                        (usuario.getRol() != RolUsuario.ORGANIZADOR ||
-                                evento.getOrganizador() == null ||
-                                !evento.getOrganizador().getId().equals(usuario.getId())))) {
-
-            throw new ResponseStatusException(
-                    HttpStatus.FORBIDDEN, "No tienes permisos"
-            );
+        if (usuario == null || (usuario.getRol() != RolUsuario.ADMIN && (usuario.getRol() != RolUsuario.ORGANIZADOR || evento.getOrganizador() == null ||
+                !evento.getOrganizador().getId().equals(usuario.getId())))) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "No tienes permisos");
         }
         // no editar eventos finalizados o cancelados
-        if (evento.getEstado() == EstadoEvento.FINALIZADO ||
-                evento.getEstado() == EstadoEvento.CANCELADO) {
-
+        if (evento.getEstado() == EstadoEvento.FINALIZADO || evento.getEstado() == EstadoEvento.CANCELADO) {
             throw new ResponseStatusException(
-                    HttpStatus.UNPROCESSABLE_CONTENT,
-                    "No se puede editar un evento finalizado o cancelado"
+                    HttpStatus.UNPROCESSABLE_CONTENT, "No se puede editar un evento finalizado o cancelado"
             );
         }
         // test datos obligatorios
@@ -276,28 +238,21 @@ public class EventoService {
                 datos.idCategoria() == null) {
 
             throw new ResponseStatusException(
-                    HttpStatus.UNPROCESSABLE_CONTENT,
-                    "Faltan datos obligatorios"
+                    HttpStatus.UNPROCESSABLE_CONTENT, "Faltan datos obligatorios"
             );
         }
         // test fechas
         if (!datos.fechaFin().isAfter(datos.fechaInicio()) ||
-                (datos.fechaLimite() != null &&
-                        datos.fechaLimite().isAfter(datos.fechaInicio()))) {
-
+                (datos.fechaLimite() != null && datos.fechaLimite().isAfter(datos.fechaInicio()))) {
             throw new ResponseStatusException(
-                    HttpStatus.UNPROCESSABLE_CONTENT,
-                    "Fechas incorrectas"
+                    HttpStatus.UNPROCESSABLE_CONTENT, "Fechas incorrectas"
             );
         }
         // find lugar y categoria
-        Lugar lugar = lugarRepository.findById(datos.idLugar())
-                .orElseThrow(() -> new ResponseStatusException(
+        Lugar lugar = lugarRepository.findById(datos.idLugar()).orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Lugar no encontrado"
                 ));
-        Categoria categoria = categoriaRepository
-                .findById(datos.idCategoria())
-                .orElseThrow(() -> new ResponseStatusException(
+        Categoria categoria = categoriaRepository.findById(datos.idCategoria()).orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Categoria no encontrada"
                 ));
         // test aforo
@@ -315,8 +270,7 @@ public class EventoService {
                 aforo < ocupadas) {
 
             throw new ResponseStatusException(
-                    HttpStatus.UNPROCESSABLE_CONTENT,
-                    "Aforo incorrecto"
+                    HttpStatus.UNPROCESSABLE_CONTENT, "Aforo incorrecto"
             );
         }
         // test solapamientos sin contar el propio evento
@@ -329,8 +283,7 @@ public class EventoService {
         );
         if (solapados > 0) {
             throw new ResponseStatusException(
-                    HttpStatus.CONFLICT,
-                    "Ya existe un evento en ese lugar y horario"
+                    HttpStatus.CONFLICT, "Ya existe un evento en ese lugar y horario"
             );
         }
         // find cursos
@@ -342,13 +295,10 @@ public class EventoService {
         List<Integer> idsRequisitos = datos.requisitos() == null
                 ? List.of()
                 : datos.requisitos().stream().distinct().toList();
-        List<Requisito> requisitos =
-                requisitoRepository.findAllById(idsRequisitos);
-        if (cursos.size() != idsCursos.size() ||
-                requisitos.size() != idsRequisitos.size()) {
+        List<Requisito> requisitos = requisitoRepository.findAllById(idsRequisitos);
+        if (cursos.size() != idsCursos.size() || requisitos.size() != idsRequisitos.size()) {
             throw new ResponseStatusException(
-                    HttpStatus.NOT_FOUND,
-                    "Curso o requisito no encontrado"
+                    HttpStatus.NOT_FOUND, "Curso o requisito no encontrado"
             );
         }
         // if event is pblicao, save change
@@ -395,8 +345,7 @@ public class EventoService {
         return eventoRepository.save(evento);
     }
     // Save change de event
-    private void guardarCambio(Evento evento, Usuario usuario,
-                               String campo, Object anterior, Object nuevo) {
+    private void guardarCambio(Evento evento, Usuario usuario, String campo, Object anterior, Object nuevo) {
         // test if valor change
         if (!Objects.equals(anterior, nuevo)) {
             CambioEvento cambio = new CambioEvento();
@@ -429,9 +378,7 @@ public class EventoService {
         }
         // create noti
         Notificacion notificacion = new Notificacion();
-        notificacion.setMensaje(
-                "El evento '" + evento.getTitulo() +
-                        "' ha cambiado de fecha, hora o lugar"
+        notificacion.setMensaje("El evento '" + evento.getTitulo() + "' ha cambiado de fecha, hora o lugar"
         );
         notificacionRepository.save(notificacion);
         // noti a each user
@@ -445,18 +392,14 @@ public class EventoService {
     }
     // ENDPOINT 6: public o cancel event
     @Transactional
-    public Evento cambiarEstado(Integer id, EstadoEvento nuevoEstado,
-                                Usuario usuario) {
+    public Evento cambiarEstado(Integer id, EstadoEvento nuevoEstado, Usuario usuario) {
         // find evento
-        Evento evento = eventoRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(
+        Evento evento = eventoRepository.findById(id).orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Evento no encontrado"
                 ));
         // test permisos
         if (usuario == null ||
-                (usuario.getRol() != RolUsuario.ADMIN &&
-                        (usuario.getRol() != RolUsuario.ORGANIZADOR ||
-                                evento.getOrganizador() == null ||
+                (usuario.getRol() != RolUsuario.ADMIN && (usuario.getRol() != RolUsuario.ORGANIZADOR || evento.getOrganizador() == null ||
                                 !evento.getOrganizador().getId().equals(usuario.getId())))) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN, "No tienes permisos"
@@ -475,22 +418,17 @@ public class EventoService {
             );
             if (solapados > 0) {
                 throw new ResponseStatusException(
-                        HttpStatus.CONFLICT,
-                        "Ya existe un evento en ese lugar y horario"
+                        HttpStatus.CONFLICT, "Ya existe un evento en ese lugar y horario"
                 );
             }
             evento.setEstado(EstadoEvento.PUBLICADO);
             // cancel desde Draft or public
-        } else if (nuevoEstado == EstadoEvento.CANCELADO &&
-                (evento.getEstado() == EstadoEvento.BORRADOR ||
-                        evento.getEstado() == EstadoEvento.PUBLICADO)) {
+        } else if (nuevoEstado == EstadoEvento.CANCELADO && (evento.getEstado() == EstadoEvento.BORRADOR || evento.getEstado() == EstadoEvento.PUBLICADO)) {
             evento.setEstado(EstadoEvento.CANCELADO);
-            // advice a los inscri
-            notificarCancelacion(evento);
+            notificarCancelacion(evento); // advice a los inscri
         } else {
             throw new ResponseStatusException(
-                    HttpStatus.UNPROCESSABLE_CONTENT,
-                    "Cambio de estado no permitido"
+                    HttpStatus.UNPROCESSABLE_CONTENT, "Cambio de estado no permitido"
             );
         }
         // save estado
@@ -498,16 +436,13 @@ public class EventoService {
     }
     // ENDPOINT 6: notify cancelacion
     private void notificarCancelacion(Evento evento) {
-        List<Inscripcion> inscripciones =
-                inscripcionRepository.findByEventoId(evento.getId());
+        List<Inscripcion> inscripciones = inscripcionRepository.findByEventoId(evento.getId());
         if (inscripciones.isEmpty()) {
             return;
         }
         // create notifi
         Notificacion notificacion = new Notificacion();
-        notificacion.setMensaje(
-                "El evento '" + evento.getTitulo() + "' ha sido cancelado"
-        );
+        notificacion.setMensaje("El evento '" + evento.getTitulo() + "' ha sido cancelado");
         notificacionRepository.save(notificacion);
         // notifi a tos los inscri
         for (Inscripcion inscripcion : inscripciones) {

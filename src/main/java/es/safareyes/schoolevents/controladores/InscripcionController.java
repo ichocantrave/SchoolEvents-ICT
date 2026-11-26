@@ -39,7 +39,6 @@ public class InscripcionController {
             @RequestParam Integer idUsuario) {
 
         servicio.borrarInscripcion(id, idUsuario);
-
         return ResponseEntity.noContent().build();
     }
     //Endpoint 12: consult inscri in event
@@ -49,9 +48,7 @@ public class InscripcionController {
             @RequestParam Integer idUsuario,
             @RequestParam(defaultValue = "0") int pagina,
             @RequestParam(defaultValue = "5") int tamano){
-        return servicio.listarInscritos(
-                id, idUsuario, pagina, tamano
-        );
+        return servicio.listarInscritos(id, idUsuario, pagina, tamano);
     }
 
     // ENDPOINT 13: marcar asist
@@ -61,8 +58,7 @@ public class InscripcionController {
             @PathVariable Integer inscripcionId,
             @RequestParam Integer idUsuario,
             @RequestBody Map<String, Boolean> datos) {
-        Inscripcion inscripcion = servicio.marcarAsistencia(id, inscripcionId, idUsuario, datos.get("asistio")
-        );
+        Inscripcion inscripcion = servicio.marcarAsistencia(id, inscripcionId, idUsuario, datos.get("asistio"));
         return ResponseEntity.ok(
                 Map.of("idInscripcion", inscripcion.getId(), "asistio", inscripcion.getAsistio())
         );

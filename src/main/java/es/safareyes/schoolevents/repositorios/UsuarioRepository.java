@@ -8,5 +8,5 @@ import java.util.Optional;
 public interface UsuarioRepository extends JpaRepository<Usuario, Integer> {
 
     Optional<Usuario> findByUsuario(String usuario);
-    //busca un único nombre de usuario en la base de datos a partir de su nombre de usuario.
+    //find 1 only name of user in BD a partir de su name o user.
 }
