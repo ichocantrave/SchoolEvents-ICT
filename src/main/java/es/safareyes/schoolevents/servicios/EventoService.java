@@ -365,9 +365,6 @@ public class EventoService {
                 inscripcionRepository.findByEventoId(evento.getId());
         // get user recived noti
         List<Usuario> usuarios = inscripciones.stream()
-                .filter(i -> i.getTipo() == TipoInscripcion.ASISTIRE)
-                .filter(i -> i.getEstado() == EstadoInscripcion.CONFIRMADA ||
-                        i.getEstado() == EstadoInscripcion.EN_ESPERA)
                 .map(Inscripcion::getUsuario)
                 .filter(Objects::nonNull)
                 .distinct()

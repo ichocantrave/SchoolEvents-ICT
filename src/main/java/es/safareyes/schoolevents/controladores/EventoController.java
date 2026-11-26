@@ -56,10 +56,13 @@ public class EventoController {
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
             LocalDateTime hasta) {
+
         //filtro to consults events public
         Specification<Evento> filtros =
-                (root, query, cb) -> // he añadido listar para que gestione los dos filtros creados en eventoSpecification.java
-                        cb.equal(root.get("estado"), EstadoEvento.PUBLICADO);
+                (root, query, cb) -> cb.or(
+                                cb.equal(root.get("estado"), EstadoEvento.PUBLICADO),
+                                cb.equal(root.get("estado"), EstadoEvento.FINALIZADO)
+                );
         // Filtramos x catgeoria  si recibimos  ID
         if (categoria != null) {
             filtros = filtros.and(EventoSpecifications.conCategoria(categoria)
